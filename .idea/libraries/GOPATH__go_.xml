@@ -1,0 +1,22 @@
+<component name="libraryTable">
+  <library name="GOPATH &lt;go&gt;">
+    <CLASSES>
+      <root url="file://$USER_HOME$/work/src/naveed-jamil-tenpearls" />
+      <root url="file://$USER_HOME$/work/src/gopkg.in" />
+      <root url="file://$USER_HOME$/work/src/github.com" />
+      <root url="file://$USER_HOME$/work/src/golang.org" />
+      <root url="file://$USER_HOME$/work/src/go-crypto-swap" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES>
+      <root url="file://$USER_HOME$/work/src/naveed-jamil-tenpearls" />
+      <root url="file://$USER_HOME$/work/src/gopkg.in" />
+      <root url="file://$USER_HOME$/work/src/github.com" />
+      <root url="file://$USER_HOME$/work/src/golang.org" />
+      <root url="file://$USER_HOME$/work/src/go-crypto-swap" />
+    </SOURCES>
+    <excluded>
+      <root url="file://$PROJECT_DIR$" />
+    </excluded>
+  </library>
+</component>
