@@ -95,8 +95,9 @@ func ReadDirForParsing(workFlowDir string) []string {
 }
 
 func executeCommand(cmd []string) {
-	binary := "/home/shahzaib/work/src/github.com/shahzaibalikhan/transpile/trace/tracy"
-	if err := exec.Command(binary, cmd...).Run(); err != nil {
+	absPath, _ := filepath.Abs("./tracy")
+
+	if err := exec.Command(absPath, cmd...).Run(); err != nil {
 		fmt.Println("Error occurred while running command")
 		fmt.Fprintln(os.Stderr, err)
 	}
