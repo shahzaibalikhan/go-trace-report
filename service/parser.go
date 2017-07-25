@@ -12,86 +12,97 @@ import (
 	"io/ioutil"
 	"encoding/json"
 	"sync"
+	"strconv"
 )
 
+type WorkFlowData struct {
+	WorkFlowNumber int
+	Data           []Raw
+}
+
 type Raw struct {
-	StackFrames map[string] struct {
-		Name string `json:"name"`
+	StackFrames map[string]struct {
+		Name   string `json:"name"`
 		Parent int `json:"parent"`
 	} `json:"stackFrames"`
 }
 
 type workFlow map[string][]Raw
-var cryptoRef = make(map[string][]string)
-var totalFunctionsCount = make(map[string]int)
-var fipsFunctionCount = make(map[string]int)
 
-//var root string = "/home/shahzaib/Downloads/traces/"
-func ReadDirForParsing(root string) {
-	var filePaths []string
+func ReadDirForParsing(workFlowDir string) []string {
+	var totalRawDumps []string
+	var filesWritten []string
+	var groupFilePathsByWorkFlow = make(map[int][]string)
 
-	err := filepath.Walk(root, func(path string, f os.FileInfo, err error) error {
+	_ = filepath.Walk(workFlowDir, func(path string, f os.FileInfo, err error) error {
 		// Fix with regex later
 		if strings.Contains(path, "Workflow") && strings.Contains(path, ".out") {
-			filePaths = append(filePaths, path)
+			totalRawDumps = append(totalRawDumps, path)
 		}
 
 		return nil
 	})
 
-	if err != nil {
-		panic(err)
+	for i := range (totalRawDumps) {
+		workflowNo := strings.Split(strings.Split(totalRawDumps[i], "Workflow")[1], "/")[0]
+		number, _ := strconv.ParseInt(workflowNo, 10, 0)
+		groupFilePathsByWorkFlow[int(number)] = append(groupFilePathsByWorkFlow[int(number)], totalRawDumps[i])
 	}
 
-	fmt.Printf("Total raw dumps %d\n", len(filePaths))
-	timeToSleep := (time.Duration(len(filePaths)) % 7) * time.Second
+	fmt.Printf("Total workflow %d\n", len(groupFilePathsByWorkFlow))
+
+	fmt.Printf("Total workflow dumps %d\n", len(totalRawDumps))
+	timeToSleep := 1 * time.Second
 	fmt.Println("wait for `go trace` to start: ", timeToSleep)
 
 	var wg sync.WaitGroup
 
-	wg.Add(len(filePaths))
+	wg.Add(len(totalRawDumps))
 
-	for p := range filePaths {
+	for workFlowNo := range groupFilePathsByWorkFlow {
+		for fun := range groupFilePathsByWorkFlow[workFlowNo] {
+			go func(workFlowNo int, fun int) {
+				defer wg.Done()
+				randPort := randomPortNumber()
+				cmdArgs := []string{fmt.Sprintf("-http=localhost:%d", randPort),
+					groupFilePathsByWorkFlow[int(workFlowNo)][fun]}
+				go executeCommand(cmdArgs)
 
-		go func() {
-			defer wg.Done()
+				time.Sleep(timeToSleep)
 
-			workflowNo := strings.Split(strings.Split(filePaths[p], "Workflow")[1], "/")[0]
+				requestData := requestForJSONTrace(randPort)
 
-			r := rand.New(rand.NewSource(time.Now().UnixNano()))
-			randPort := r.Intn(10000+3000) + 3000
+				if requestData != nil {
+					data := requestJSONUnmarshal(requestData)
+					time.Sleep(time.Duration(rand.Int31n(1000)) * time.Millisecond)
 
-			cmdArgs := []string{"tool", "trace", fmt.Sprintf("-http=localhost:%d", randPort), filePaths[p]}
+					dataToWrite := ""
+					for d := range data.StackFrames {
+						dataToWrite = fmt.Sprintf("%s%s\n", dataToWrite, data.StackFrames[d].Name)
+					}
+					fileToWrite := fmt.Sprintf("/tmp/functions-%d-%d", workFlowNo, fun)
+					filesWritten = append(filesWritten, fileToWrite)
+					_ = ioutil.WriteFile(fileToWrite, []byte(dataToWrite), 0644)
+				}
 
-			go executeCommand(cmdArgs)
-
-			time.Sleep(timeToSleep)
-
-			requestData := requestForJSONTrace(randPort)
-
-			if requestData != nil {
-				temp := requestJSONUnmarshal(requestData)
-				time.Sleep(time.Duration(rand.Int31n(1000)) * time.Millisecond)
-				cryptoFinder(workflowNo, temp)
-			}
-		}()
+			}(int(workFlowNo), fun)
+		}
 	}
 
 	wg.Wait()
 
-	report()
-
-	fmt.Println("All files read!")
+	return filesWritten
 }
 
-func executeCommand(cmd []string)  {
-	if err := exec.Command("go", cmd...).Run(); err != nil {
+func executeCommand(cmd []string) {
+	binary := "/home/shahzaib/work/src/github.com/shahzaibalikhan/transpile/trace/tracy"
+	if err := exec.Command(binary, cmd...).Run(); err != nil {
 		fmt.Println("Error occurred while running command")
 		fmt.Fprintln(os.Stderr, err)
 	}
 }
 
-func requestForJSONTrace(port int) []byte{
+func requestForJSONTrace(port int) []byte {
 	res, err := http.Get(fmt.Sprintf("http://127.0.0.1:%d/jsontrace", port))
 	if err != nil {
 		fmt.Println("Request error")
@@ -118,30 +129,7 @@ func requestJSONUnmarshal(jsonBlob []byte) Raw {
 	return r
 }
 
-func cryptoFinder(workflowNo string, data Raw) {
-
-	for i := range data.StackFrames {
-		if strings.Contains(data.StackFrames[i].Name, "crypto/") {
-			cryptoRef[workflowNo] = append(cryptoRef[workflowNo], data.StackFrames[i].Name)
-
-			if strings.Contains(data.StackFrames[i].Name, "fips") {
-				fipsFunctionCount[workflowNo]++
-			}
-
-			totalFunctionsCount[workflowNo]++
-		}
-	}
-}
-
-func report() {
-	for k := range totalFunctionsCount {
-
-		fipsCallPercent := 0
-		if totalFunctionsCount[k] > 0 {
-			fipsCallPercent = fipsFunctionCount[k] / totalFunctionsCount[k] * 100;
-		}
-		fmt.Printf("Workflow: %s \n", k);
-		fmt.Printf("fips hit percentage: %d \n", fipsCallPercent);
-		fmt.Println("===========================");
-	}
+func randomPortNumber() int {
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	return r.Intn(10000 + 3000) + 3000
 }
