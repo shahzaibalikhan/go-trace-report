@@ -1,10 +1,8 @@
 package service
 
 import (
-	"io/ioutil"
 	"fmt"
 	"strings"
-	"go-crypto-swap/.GOROOT/src/strconv"
 	"sort"
 )
 
@@ -16,48 +14,41 @@ type val struct {
 type report map[int]val
 
 func GenerateReport(FilesToRead []string) string {
-	var generatedReport string
 	var re = report{}
 
 	for i := range FilesToRead {
-		dat, _ := ioutil.ReadFile(FilesToRead[i])
-		funCount, fipsCount := returnFipsRef(string(dat))
+		totalFunCounts, fipsCount := returnFipsRef(fileReader(FilesToRead[i]))
 
 		q := strings.Split(FilesToRead[i], "-")
 		q = q[len(q) - 2:]
-		workFlowNo, _ := strconv.ParseInt(q[0], 10, 32)
-		index := int(workFlowNo)
-		if re[index].fipCount == 0 {
-			re[index] = val{fipCount:float64(fipsCount), funCount:float64(funCount)}
+
+		index := strToInt(q[0])
+
+		if re[index].funCount == 0 {
+			re[index] = val{fipCount:float64(fipsCount), funCount:float64(totalFunCounts)}
 		} else {
 			v := re[index]
-			v.funCount = v.funCount + float64(funCount)
+			v.funCount = v.funCount + float64(totalFunCounts)
 			v.fipCount = v.fipCount + float64(fipsCount)
 			re[index] = v
-
 		}
 	}
 
-	for i := range sortIndex(re) {
-		i = i + 1
-		generatedReport = generatedReport + fmt.Sprintf("Workflow: %d \n", i);
-		generatedReport = generatedReport + fmt.Sprintf("fips hit percentage: %.2f \n", re[i].fipCount / re[i].funCount * 100);
-		generatedReport = generatedReport + fmt.Sprintln("===========================");
-	}
-	return generatedReport
+	return createReport(re)
 }
 
 func returnFipsRef(data string) (int, int) {
-	var fipsCounter = 0
+	var counter = 0
 
 	var a = strings.Split(string(data), "\n")
+
 	for i := range a {
 		if strings.Contains(a[i], "fips") {
-			fipsCounter++
+			counter++
 		}
 	}
 
-	return len(a), fipsCounter
+	return len(a), counter
 }
 
 func sortIndex(m report) []int {
@@ -68,4 +59,17 @@ func sortIndex(m report) []int {
 	sort.Ints(keys)
 
 	return keys
+}
+
+func createReport(re report) string {
+	generatedReport := "\n************************************\n\n"
+
+	for i := range sortIndex(re) {
+		i = i + 1
+		generatedReport = generatedReport + fmt.Sprintf("Workflow: %d \n", i);
+		generatedReport = generatedReport + fmt.Sprintf("fips hit percentage: %.2f \n", re[i].fipCount / re[i].funCount * 100);
+		generatedReport = generatedReport + fmt.Sprintln("===========================");
+	}
+
+	return generatedReport
 }

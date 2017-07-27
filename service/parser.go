@@ -2,7 +2,6 @@ package service
 
 import (
 	"fmt"
-	"math/rand"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -12,29 +11,15 @@ import (
 	"io/ioutil"
 	"encoding/json"
 	"sync"
-	"strconv"
 )
 
-type WorkFlowData struct {
-	WorkFlowNumber int
-	Data           []Raw
-}
-
-type Raw struct {
-	StackFrames map[string]struct {
-		Name   string `json:"name"`
-		Parent int `json:"parent"`
-	} `json:"stackFrames"`
-}
-
-type workFlow map[string][]Raw
 
 func ReadDirForParsing(workFlowDir string) []string {
 	var totalRawDumps []string
 	var filesWritten []string
 	var groupFilePathsByWorkFlow = make(map[int][]string)
 
-	_ = filepath.Walk(workFlowDir, func(path string, f os.FileInfo, err error) error {
+	err := filepath.Walk(workFlowDir, func(path string, f os.FileInfo, err error) error {
 		// Fix with regex later
 		if strings.Contains(path, "Workflow") && strings.Contains(path, ".out") {
 			totalRawDumps = append(totalRawDumps, path)
@@ -43,10 +28,18 @@ func ReadDirForParsing(workFlowDir string) []string {
 		return nil
 	})
 
+	if err != nil {
+		panic(fmt.Sprintf("unable to traverse dir: %s err: %v", workFlowDir, err))
+	}
+
 	for i := range (totalRawDumps) {
-		workflowNo := strings.Split(strings.Split(totalRawDumps[i], "Workflow")[1], "/")[0]
-		number, _ := strconv.ParseInt(workflowNo, 10, 0)
-		groupFilePathsByWorkFlow[int(number)] = append(groupFilePathsByWorkFlow[int(number)], totalRawDumps[i])
+		workflowNo := strToInt(strings.Split(strings.Split(totalRawDumps[i], "Workflow")[1], "/")[0])
+		groupFilePathsByWorkFlow[workflowNo] = append(groupFilePathsByWorkFlow[workflowNo], totalRawDumps[i])
+	}
+
+	if len(groupFilePathsByWorkFlow) == 0 {
+		fmt.Println("No workflows found in dir", workFlowDir)
+		os.Exit(1)
 	}
 
 	fmt.Printf("Total workflow %d\n", len(groupFilePathsByWorkFlow))
@@ -63,26 +56,28 @@ func ReadDirForParsing(workFlowDir string) []string {
 		for fun := range groupFilePathsByWorkFlow[workFlowNo] {
 			go func(workFlowNo int, fun int) {
 				defer wg.Done()
+
 				randPort := randomPortNumber()
+
 				cmdArgs := []string{fmt.Sprintf("-http=localhost:%d", randPort),
 					groupFilePathsByWorkFlow[int(workFlowNo)][fun]}
 				go executeCommand(cmdArgs)
-
 				time.Sleep(timeToSleep)
 
 				requestData := requestForJSONTrace(randPort)
 
 				if requestData != nil {
-					data := requestJSONUnmarshal(requestData)
-					time.Sleep(time.Duration(rand.Int31n(1000)) * time.Millisecond)
+					data := JsonToRawObject(requestData)
 
 					dataToWrite := ""
 					for d := range data.StackFrames {
 						dataToWrite = fmt.Sprintf("%s%s\n", dataToWrite, data.StackFrames[d].Name)
 					}
-					fileToWrite := fmt.Sprintf("/tmp/functions-%d-%d", workFlowNo, fun)
+
+					dir := ensureDir("/functions")
+					fileToWrite := fmt.Sprintf("%s/functions-%d-%d", dir, workFlowNo, fun)
+					writeFile(fileToWrite, dataToWrite)
 					filesWritten = append(filesWritten, fileToWrite)
-					_ = ioutil.WriteFile(fileToWrite, []byte(dataToWrite), 0644)
 				}
 
 			}(int(workFlowNo), fun)
@@ -95,32 +90,30 @@ func ReadDirForParsing(workFlowDir string) []string {
 }
 
 func executeCommand(cmd []string) {
-	absPath, _ := filepath.Abs("./tracy")
-
-	if err := exec.Command(absPath, cmd...).Run(); err != nil {
-		fmt.Println("Error occurred while running command")
-		fmt.Fprintln(os.Stderr, err)
+	if err := exec.Command(AbsPath(tracyPath), cmd...).Run(); err != nil {
+		Logger("Error occurred while running command")
+		Logger(fmt.Sprintf("%v", err))
 	}
 }
 
 func requestForJSONTrace(port int) []byte {
 	res, err := http.Get(fmt.Sprintf("http://127.0.0.1:%d/jsontrace", port))
 	if err != nil {
-		fmt.Println("Request error")
-		fmt.Println(err)
+		Logger("Request error")
+		Logger(fmt.Sprintf("%v", err))
 		return nil
 	} else {
 		robots, err := ioutil.ReadAll(res.Body)
 		if err != nil {
-			fmt.Println("Body error")
-			fmt.Println(err)
+			Logger("Body error")
+			Logger(fmt.Sprintf("%v", err))
 		}
 		res.Body.Close()
 		return robots
 	}
 }
 
-func requestJSONUnmarshal(jsonBlob []byte) Raw {
+func JsonToRawObject(jsonBlob []byte) Raw {
 	r := Raw{}
 	err := json.Unmarshal(jsonBlob, &r)
 
@@ -128,9 +121,4 @@ func requestJSONUnmarshal(jsonBlob []byte) Raw {
 		panic(err)
 	}
 	return r
-}
-
-func randomPortNumber() int {
-	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-	return r.Intn(10000 + 3000) + 3000
 }

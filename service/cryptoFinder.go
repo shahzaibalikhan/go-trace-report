@@ -6,23 +6,26 @@ import (
 	"strings"
 )
 
-func CryptoFinder(FilesToRead []string) []string {
+func LocateCryptoUsages(FilesToRead []string) []string {
 	var filesWritten []string
 
 	for i := range FilesToRead {
 		dat, _ := ioutil.ReadFile(FilesToRead[i])
-		d := returnCryptoRef(string(dat))
+		d := findCryptoUsages(string(dat))
 
 		dataToWrite := fmt.Sprintf("%s\n", strings.Join(d, "\n"))
+		_ = ensureDir("/crypto")
 
-		fileToWrite := strings.Replace(FilesToRead[i], "/functions", "/crypto", 1)
-		_ = ioutil.WriteFile(fileToWrite, []byte(dataToWrite), 0644)
+		fileToWrite := strings.Replace(FilesToRead[i], "/functions-", "/crypto-", 1)
+		fileToWrite = strings.Replace(fileToWrite, "/functions/", "/crypto/", 1)
+
+		writeFile(fileToWrite, dataToWrite)
 		filesWritten = append(filesWritten, fileToWrite)
 	}
 	return filesWritten
 }
 
-func returnCryptoRef(data string) []string {
+func findCryptoUsages(data string) []string {
 	var r []string
 
 	var a = strings.Split(string(data), "\n")
