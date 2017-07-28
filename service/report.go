@@ -2,8 +2,8 @@ package service
 
 import (
 	"fmt"
-	"strings"
 	"sort"
+	"strings"
 )
 
 type val struct {
@@ -13,6 +13,7 @@ type val struct {
 
 type report map[int]val
 
+// GenerateReport Generates final report containing total function count and FIPS call references
 func GenerateReport(FilesToRead []string) string {
 	var re = report{}
 
@@ -20,12 +21,12 @@ func GenerateReport(FilesToRead []string) string {
 		totalFunCounts, fipsCount := returnFipsRef(fileReader(FilesToRead[i]))
 
 		q := strings.Split(FilesToRead[i], "-")
-		q = q[len(q) - 2:]
+		q = q[len(q)-2:]
 
 		index := strToInt(q[0])
 
 		if re[index].funCount == 0 {
-			re[index] = val{fipCount:float64(fipsCount), funCount:float64(totalFunCounts)}
+			re[index] = val{fipCount: float64(fipsCount), funCount: float64(totalFunCounts)}
 		} else {
 			v := re[index]
 			v.funCount = v.funCount + float64(totalFunCounts)
@@ -66,9 +67,9 @@ func createReport(re report) string {
 
 	for i := range sortIndex(re) {
 		i = i + 1
-		generatedReport = generatedReport + fmt.Sprintf("Workflow: %d \n", i);
-		generatedReport = generatedReport + fmt.Sprintf("fips hit percentage: %.2f \n", re[i].fipCount / re[i].funCount * 100);
-		generatedReport = generatedReport + fmt.Sprintln("===========================");
+		generatedReport = generatedReport + fmt.Sprintf("Workflow: %d \n", i)
+		generatedReport = generatedReport + fmt.Sprintf("fips hit percentage: %.2f \n", re[i].fipCount/re[i].funCount*100)
+		generatedReport = generatedReport + fmt.Sprintln("===========================")
 	}
 
 	return generatedReport

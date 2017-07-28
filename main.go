@@ -1,12 +1,13 @@
 package main
 
 import (
-	"github.com/shahzaibalikhan/transpile/service"
-	"fmt"
 	"flag"
+	"fmt"
 	"os"
 	"strings"
 	"time"
+
+	"github.com/shahzaibalikhan/transpile/service"
 )
 
 const usageMessage = "" +
@@ -17,7 +18,6 @@ Given a trace file produced by 'go test':
 Args:
 	path to workflow dir
 `
-
 
 func main() {
 	start := time.Now()
@@ -32,7 +32,7 @@ func main() {
 	switch flag.NArg() {
 	case 1:
 		service.WorkFlowDir = service.AbsPath(flag.Arg(0))
-		fmt.Println("Traversing Dir for workflows: ", service.WorkFlowDir)
+		fmt.Println("Traversing directory for workflows: ", service.WorkFlowDir)
 	default:
 		flag.Usage()
 	}
@@ -53,5 +53,6 @@ func main() {
 	service.Logger("Final report")
 	fmt.Println(report)
 
-	fmt.Printf("Time to execute %s", time.Since(start))
+	fmt.Println("Time to execute ", time.Since(start))
+	os.Exit(0)
 }

@@ -1,19 +1,19 @@
 package service
 
 import (
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"time"
-	"net/http"
-	"io/ioutil"
-	"encoding/json"
 	"sync"
+	"time"
 )
 
-
+// ReadDirForParsing Reads all work log files, return all array of files created after parsing
 func ReadDirForParsing(workFlowDir string) []string {
 	var totalRawDumps []string
 	var filesWritten []string
@@ -32,7 +32,7 @@ func ReadDirForParsing(workFlowDir string) []string {
 		panic(fmt.Sprintf("unable to traverse dir: %s err: %v", workFlowDir, err))
 	}
 
-	for i := range (totalRawDumps) {
+	for i := range totalRawDumps {
 		workflowNo := strToInt(strings.Split(strings.Split(totalRawDumps[i], "Workflow")[1], "/")[0])
 		groupFilePathsByWorkFlow[workflowNo] = append(groupFilePathsByWorkFlow[workflowNo], totalRawDumps[i])
 	}
@@ -67,7 +67,7 @@ func ReadDirForParsing(workFlowDir string) []string {
 				requestData := requestForJSONTrace(randPort)
 
 				if requestData != nil {
-					data := JsonToRawObject(requestData)
+					data := jsonToRawObject(requestData)
 
 					dataToWrite := ""
 					for d := range data.StackFrames {
@@ -102,18 +102,17 @@ func requestForJSONTrace(port int) []byte {
 		Logger("Request error")
 		Logger(fmt.Sprintf("%v", err))
 		return nil
-	} else {
-		robots, err := ioutil.ReadAll(res.Body)
-		if err != nil {
-			Logger("Body error")
-			Logger(fmt.Sprintf("%v", err))
-		}
-		res.Body.Close()
-		return robots
 	}
+	robots, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		Logger("Body error")
+		Logger(fmt.Sprintf("%v", err))
+	}
+	res.Body.Close()
+	return robots
 }
 
-func JsonToRawObject(jsonBlob []byte) Raw {
+func jsonToRawObject(jsonBlob []byte) Raw {
 	r := Raw{}
 	err := json.Unmarshal(jsonBlob, &r)
 

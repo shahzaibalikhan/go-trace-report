@@ -1,11 +1,12 @@
 package service
 
 import (
-	"io/ioutil"
 	"fmt"
+	"io/ioutil"
 	"strings"
 )
 
+// LocateCryptoUsages locates crypto references from trace files
 func LocateCryptoUsages(FilesToRead []string) []string {
 	var filesWritten []string
 
